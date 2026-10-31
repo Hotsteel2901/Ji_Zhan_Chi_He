@@ -1,0 +1,16 @@
+# 本地备份与工具
+.backup-v2/
+.workbuddy/
+.vscode/
+.DS_Store
+node_modules/
+
+# 开发探针/临时页，不参与作品发布
+_music-test.html
+game-probe.mjs
+debug.html
+probe*.html
+test-drive.html
+
+# 本地日志
+*.log

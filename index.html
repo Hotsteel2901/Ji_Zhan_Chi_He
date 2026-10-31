@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="data:," />
+<title>激战池核 POOLCORE</title>
+<link rel="stylesheet" href="./styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- ======================= 全屏效果层 ======================= -->
+<div id="fx-vignette"></div>
+<div id="fx-grain"></div>
+<div id="fx-underwater"><div class="uw-caustics"></div><div class="uw-tint"></div></div>
+<div id="fx-damage"></div>
+<div id="fx-lowhp"></div>
+<div id="fx-heal"></div>
+<div id="fx-slowmo"></div>
+<div id="fx-fade"></div>
+
+<!-- ======================= HUD ======================= -->
+<div id="hud" class="hidden">
+
+  <div class="hud-topleft">
+    <div class="objective-card">
+      <div class="objective-title"><span class="dot-cyan"></span><span id="objTitle">回声初响</span></div>
+      <div class="objective-count"><b id="shardNum">0</b><span>/ 12 碎片</span></div>
+      <div class="objective-sub" id="objSub">在池核中收集 4 枚回声碎片</div>
+      <div class="objective-side" id="objSide"></div>
+      <div class="pips" id="shardPips"></div>
+    </div>
+  </div>
+
+  <div class="hud-compass" id="compassWrap">
+    <div class="compass-dial">
+      <div class="dial-ticks"></div>
+      <div class="compass-needle" id="compassNeedle"><span class="needle-gem"></span></div>
+      <span class="dial-dot"></span>
+      <div class="dial-vert" id="compassVert">◆</div>
+    </div>
+    <div class="dial-dist" id="compassDist">—</div>
+  </div>
+  <div id="crystalMarker" class="crystal-marker hidden"><span class="cm-gem"></span><span class="cm-dist" id="crystalDist"></span></div>
+
+  <div class="hud-topright">
+    <div class="minimap-panel">
+      <canvas id="minimap" width="320" height="320"></canvas>
+      <div class="minimap-label">SECTOR MAP</div>
+      <div class="minimap-n" id="mapCoord">0 : 0</div>
+    </div>
+    <div class="killfeed" id="killfeed"></div>
+  </div>
+
+  <div id="streakBanner" class="streak-banner"></div>
+  <div id="exitHint" class="exit-hint"><span class="beacon-ico"></span>出口信标已点亮 —— 前往塔顶信标</div>
+
+  <div id="bossBar" class="boss-bar">
+    <div class="boss-head"><span class="boss-name">守潮者 · WARDEN</span><span class="boss-pct" id="bossPct">100%</span></div>
+    <div class="boss-track"><div class="boss-fill" id="bossFill"></div><div class="boss-ticks"></div></div>
+  </div>
+
+  <div class="hud-bottomleft">
+    <div class="vitals-panel">
+      <div class="vitals-row">
+        <span class="vitals-label">生命</span>
+        <span class="vitals-num" id="healthNum">100</span>
+      </div>
+      <div class="health-track">
+        <div class="health-fill" id="healthFill"></div>
+        <div class="health-delayed" id="healthDelayed"></div>
+        <div class="health-segments"></div>
+      </div>
+      <div class="status-row" id="statusRow"></div>
+    </div>
+  </div>
+
+  <div class="hud-bottomright">
+    <div class="weapon-panel">
+      <div class="weapon-slots" id="weaponSlots"></div>
+      <div class="weapon-name" id="weaponName">回声-9 冲锋枪</div>
+      <div class="ammo-row">
+        <b id="ammoMag">30</b><span id="ammoReserve">/ 120</span>
+      </div>
+      <div class="reload-track"><div class="reload-fill" id="reloadFill"></div></div>
+      <div class="fire-mode" id="fireMode">全自动</div>
+    </div>
+  </div>
+
+  <div class="hud-bottomcenter">
+    <div class="echo-hud" id="echoHud">
+      <div class="echo-charges" id="echoCharges"></div>
+      <div class="echo-label"><b>F</b> 回声脉冲</div>
+    </div>
+    <div id="moveState" class="move-state"></div>
+    <div id="prompt" class="prompt"></div>
+  </div>
+
+  <div id="crosshair" class="crosshair">
+    <span class="ch-line ch-t"></span><span class="ch-line ch-b"></span>
+    <span class="ch-line ch-l"></span><span class="ch-line ch-r"></span>
+    <span class="ch-dot"></span>
+  </div>
+  <div id="hitmarker" class="hitmarker"><span></span><span></span><span></span><span></span></div>
+
+  <svg id="dmgdir" class="dmgdir" viewBox="-100 -100 200 200"></svg>
+  <div id="dmgNumbers" class="dmg-numbers"></div>
+  <div id="interactDot" class="interact-dot"></div>
+
+  <div class="hud-perf hidden" id="perf"></div>
+  <div id="banner" class="banner"></div>
+</div>
+
+<!-- ======================= 加载屏 ======================= -->
+<div id="screen-loading" class="screen">
+  <div class="loading-inner">
+    <div class="brand-mark">激战池核 · POOLCORE</div>
+    <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+    <div class="loading-text" id="loadingText">正在注水……</div>
+  </div>
+</div>
+
+<!-- ======================= 主菜单 ======================= -->
+<div id="screen-title" class="screen hidden">
+  <div class="title-bg"></div>
+  <div class="title-wrap">
+    <div class="title-left">
+      <div class="title-en">A LIMINAL SPACE · POOLCORE</div>
+      <h1 class="title-zh">激 战 池 核</h1>
+      <div class="title-sub">POOLCORE <em>v4</em> — 无尽室内泳池 · 回声碎片 · 生存射击<br><span style="font-size:11px;letter-spacing:.26em;opacity:.75">5 首程序化 D&amp;B · 实时合成 · M 开关 · [ ] 切歌</span></div>
+      <div class="title-seed">
+        <label>世界种子</label>
+        <input id="seedInput" type="text" maxlength="24" placeholder="随机" spellcheck="false" />
+        <button class="mini-btn" id="seedRandom">随机</button>
+        <button class="mini-btn" id="seedCopy" title="复制当前种子">复制</button>
+      </div>
+      <div class="menu-btns">
+        <button class="btn btn-primary" id="btnStart">开始探索</button>
+        <button class="btn" id="btnContinue">继续上一次</button>
+        <button class="btn" id="btnSettings">设置</button>
+        <button class="btn" id="btnHelp">操作说明</button>
+      </div>
+      <div class="title-foot">
+        <span id="musicLabel">♪ 待机</span>
+        <span class="sep">·</span>
+        <span>M 音乐开关</span>
+      </div>
+    </div>
+    <div class="title-right">
+      <div class="hint-card">
+        <div class="hint-title">目标</div>
+        <p>收集 <b>12 枚四类回声碎片</b>，点亮塔顶信标；<b>守潮者</b>会封锁出口，击败它才能离开。</p>
+        <div class="hint-title">回声</div>
+        <p>潮汐强化生命、余烬强化伤害、漂流强化机动、虚空强化射速与 <b>F 回声脉冲</b>。同类三枚触发共鸣。</p>
+        <div class="hint-title">生存</div>
+        <p>溺影会从水中、门后、阴影里出现。它们讨厌光，但更讨厌你。<b>Tab</b> 查看任务日志。</p>
+        <div class="hint-title">配乐 · 5 首程序化 D&amp;B</div>
+        <p style="font-size:11px;line-height:1.75;opacity:.82">01 冷水循环 · 02 瓷砖深渊 · 03 氯气黎明<br>04 泵房脉冲 · 05 回声溺亡<br><span style="opacity:.7">全部由 WebAudio 实时合成 · M 开关 · [ ] 切歌</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 设置 ======================= -->
+<div id="screen-settings" class="screen hidden">
+  <div class="panel wide">
+    <div class="panel-head">
+      <h2>设置</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="video">画面</button>
+        <button class="tab" data-tab="audio">声音</button>
+        <button class="tab" data-tab="input">操作</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="tab-page" data-page="video">
+        <div class="row"><label>画质预设</label>
+          <div class="seg" id="setPreset">
+            <button data-v="low">低</button><button data-v="medium">中</button>
+            <button data-v="high">高</button><button data-v="ultra">极致</button>
+          </div>
+        </div>
+        <div class="row"><label>渲染分辨率</label><input type="range" id="setResScale" min="50" max="100" step="5" /><output id="outResScale"></output></div>
+        <div class="row"><label>视场角 FOV</label><input type="range" id="setFov" min="65" max="110" step="1" /><output id="outFov"></output></div>
+        <div class="row"><label>亮度 / 曝光</label><input type="range" id="setExposure" min="50" max="120" step="1" /><output id="outExposure"></output></div>
+        <div class="row"><label>泛光强度</label><input type="range" id="setBloom" min="0" max="100" step="2" /><output id="outBloom"></output></div>
+        <div class="row"><label>动态灯光数量</label><input type="range" id="setLights" min="2" max="12" step="1" /><output id="outLights"></output></div>
+        <div class="row"><label>粒子密度</label><input type="range" id="setParticles" min="20" max="150" step="10" /><output id="outParticles"></output></div>
+        <div class="row"><label>胶片颗粒</label><input type="range" id="setGrain" min="0" max="12" step="1" /><output id="outGrain"></output></div>
+        <div class="row"><label>画面质量特效</label>
+          <div class="seg" id="setAA"><button data-v="off">关闭</button><button data-v="fxaa">FXAA</button><button data-v="smaa">SMAA</button></div>
+        </div>
+        <div class="row"><label>显示性能信息</label><div class="seg" id="setPerf"><button data-v="0">关</button><button data-v="1">开</button></div></div>
+      </div>
+      <div class="tab-page hidden" data-page="audio">
+        <div class="row"><label>主音量</label><input type="range" id="setVolMaster" min="0" max="100" step="1" /><output id="outVolMaster"></output></div>
+        <div class="row"><label>音乐</label><input type="range" id="setVolMusic" min="0" max="100" step="1" /><output id="outVolMusic"></output></div>
+        <div class="row"><label>音效</label><input type="range" id="setVolSfx" min="0" max="100" step="1" /><output id="outVolSfx"></output></div>
+        <div class="row"><label>水下闷响强度</label><input type="range" id="setMuffle" min="0" max="100" step="5" /><output id="outMuffle"></output></div>
+      </div>
+      <div class="tab-page hidden" data-page="input">
+        <div class="row"><label>鼠标灵敏度</label><input type="range" id="setSens" min="10" max="200" step="5" /><output id="outSens"></output></div>
+        <div class="row"><label>瞄准灵敏度倍率</label><input type="range" id="setAdsSens" min="20" max="100" step="5" /><output id="outAdsSens"></output></div>
+        <div class="row"><label>反转 Y 轴</label><div class="seg" id="setInvert"><button data-v="0">关</button><button data-v="1">开</button></div></div>
+        <div class="row"><label>瞄准方式</label><div class="seg" id="setAdsMode"><button data-v="hold">按住</button><button data-v="toggle">切换</button></div></div>
+        <div class="row"><label>自动冲刺</label><div class="seg" id="setAutoSprint"><button data-v="1">开</button><button data-v="0">关</button></div></div>
+        <div class="keys-grid">
+          <div><b>WASD</b>移动</div><div><b>空格</b>跳跃 / 上浮</div><div><b>Shift</b>疾跑 / 壁跑</div><div><b>C</b>滑铲</div>
+          <div><b>左键</b>射击</div><div><b>右键</b>瞄准</div><div><b>R</b>换弹</div><div><b>1 2 3 4</b>切换武器</div>
+          <div><b>Q</b>切换上一把</div><div><b>F</b>回声脉冲</div><div><b>Tab</b>回声日志</div><div><b>M</b>音乐</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn" id="btnSettingsReset">恢复默认</button>
+      <button class="btn" id="btnSettingsBack">返回</button>
+      <button class="btn btn-primary" id="btnSettingsApply">应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 暂停 ======================= -->
+<div id="screen-pause" class="screen hidden">
+  <div class="panel">
+    <div class="panel-head"><h2>已暂停</h2><div class="sub" id="pauseSub">回声碎片 0 / 12</div></div>
+    <div class="panel-body menu-col">
+      <button class="btn btn-primary" id="btnResume">继续</button>
+      <button class="btn" id="btnPauseSettings">设置</button>
+      <button class="btn" id="btnRestart">重新开始</button>
+      <button class="btn" id="btnQuit">返回主菜单</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 死亡 / 胜利 ======================= -->
+<div id="screen-dead" class="screen hidden">
+  <div class="panel result-panel">
+    <div class="result-title bad">你 被 淹 没 了</div>
+    <div class="result-stats" id="deadStats"></div>
+    <div class="menu-col">
+      <button class="btn btn-primary" id="btnDeadRetry">再来一次</button>
+      <button class="btn" id="btnDeadQuit">返回主菜单</button>
+    </div>
+  </div>
+</div>
+<div id="screen-win" class="screen hidden">
+  <div class="panel result-panel">
+    <div class="result-title good">你 逃 出 了 激 战 池 核</div>
+    <div class="result-stats" id="winStats"></div>
+    <div class="menu-col">
+      <button class="btn btn-primary" id="btnWinAgain">再逃一次</button>
+      <button class="btn" id="btnWinQuit">返回主菜单</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 回声日志 ======================= -->
+<div id="screen-journal" class="screen hidden">
+  <div class="panel wide journal-panel">
+    <div class="panel-head">
+      <h2>回 声 日 志</h2>
+      <div class="sub">TAB 关闭 · 游戏已暂停</div>
+    </div>
+    <div class="panel-body journal-body" id="journalBody"></div>
+    <div class="panel-foot">
+      <button class="btn" id="btnJournalBack">返回池核</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= 操作说明 ======================= -->
+<div id="screen-help" class="screen hidden">
+  <div class="panel wide">
+    <div class="panel-head"><h2>操作说明</h2><div class="sub">PC · 键鼠</div></div>
+    <div class="panel-body help-body">
+      <div class="help-col">
+        <h3>移动</h3>
+        <p><b>WASD</b> 移动 · <b>Shift</b> 疾跑 · <b>空格</b> 跳跃（游泳时长按上浮）</p>
+        <p>楼层之间请走<b>楼梯或坡道</b> · 高坠入水不受伤，摔到硬地会受伤</p>
+        <h3>战斗</h3>
+        <p><b>左键</b> 射击 · <b>右键</b> 瞄准 · <b>R</b> 换弹 · <b>1/2/3/4</b> 切换武器</p>
+        <p><b>F</b> 释放回声脉冲：击退并伤害周围敌人，击杀充能</p>
+        <p>子弹会被水面阻挡并溅起水花；水下射击射程大幅缩短</p>
+      </div>
+      <div class="help-col">
+        <h3>探索</h3>
+        <p>收集 <b>12 枚四类碎片</b> → 信标共鸣 → 击败<b>守潮者</b> → 抵达塔顶逃离</p>
+        <p>同类三枚触发<b>共鸣</b>；罗盘与信标会指向最近的目标</p>
+        <h3>生存</h3>
+        <p>溺影会游泳、爬出水面、从拐角伏击。击杀掉落血包与弹药</p>
+        <p>受伤后脱离战斗会缓慢回血</p>
+        <h3>系统</h3>
+        <p><b>M</b> 音乐开关 · <b>[ ]</b> 切歌 · <b>Tab</b> 日志 · <b>Esc</b> 暂停</p>
+        <p>URL 加 ?seed=xxx 复现同一座建筑</p>
+      </div>
+    </div>
+    <div class="panel-foot"><button class="btn" id="btnHelpBack">返回</button></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script type="module" src="./game.mjs"></script>
+</body>
+</html>
