@@ -17,6 +17,7 @@ import {
   loadSettings, saveSettings, applyPreset, DEFAULT_SETTINGS, EYE,
   SHARD_TYPES, SHARD_ORDER, SHARD_PER_TYPE,
   ECHO_MAX, ECHO_KILL_COST, ECHO_PULSE_RADIUS, ECHO_PULSE_DAMAGE, ECHO_COOLDOWN,
+  IS_TOUCH,
 } from './src/config.mjs';
 import { clamp, damp, mulberry32, hashStr } from './src/util.mjs';
 import { World } from './src/world/world.mjs';
@@ -31,6 +32,7 @@ import { EnemyManager } from './src/enemies.mjs';
 import { UI } from './src/ui.mjs';
 
 const QP = new URLSearchParams(location.search);
+document.body.classList.toggle('touch', IS_TOUCH);
 
 // ============================================================
 //  设置
@@ -157,7 +159,7 @@ function setAAMode(mode) {
 }
 
 function resize() {
-  const w = innerWidth, h = innerHeight;
+  const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
@@ -169,6 +171,8 @@ function resize() {
   gradePass.uniforms.uPixel.value = pr;
 }
 addEventListener('resize', resize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 240));
 
 // ------------------------------------------------------------
 // 水面环境反射：64px cubemap，低开销；水面在 layer 2，反射相机看不到自己
@@ -193,13 +197,19 @@ const audio = new AudioSys(settings);
 const ui = new UI(settings, {
   onStart: () => startRun(false),
   onContinue: () => startRun(true),
-  onResume: () => requestLock(),
+  onResume: () => { if (IS_TOUCH) resumeGame(); else requestLock(); },
   onRestart: () => restartRun(),
   onQuit: () => quitToTitle(),
   onJournalClose: () => closeJournal(),
   onSettingsApply: () => applySettings(true),
   onSettingsReset: () => {
     Object.assign(settings, DEFAULT_SETTINGS);
+    if (IS_TOUCH) {
+      applyPreset(settings, 'medium');
+      settings.resScale = 0.85;
+      settings.sens = 70;
+      settings.adsMode = 'toggle';
+    }
     applySettings(true);
     ui.refreshAll();
     ui.toast('设置已恢复默认', 'good');
@@ -279,6 +289,14 @@ let cameraIdleT = 0;
 const keys = new Set();
 const input = { fwd: 0, strafe: 0, sprint: false, up: false, down: false, fire: false, aim: false };
 let pointerLocked = false;
+let mouseFire = false;
+
+// 触屏输入状态（与键鼠并行，互不干扰）
+const touch = {
+  stickId: null, lookId: null, lastX: 0, lastY: 0,
+  fwd: 0, strafe: 0, sprint: false,
+  fire: false, up: false, down: false,
+};
 
 function bindInput() {
   addEventListener('keydown', (e) => {
@@ -308,19 +326,26 @@ function bindInput() {
     if (e.code === 'Escape') {
       if (game.state === 'journal') closeJournal();
       else if (ui.currentScreen === 'settings') ui.showScreen(game.state === 'paused' ? 'pause' : 'title');
+      else if (IS_TOUCH && game.state === 'playing') pauseGame();
     }
   });
   addEventListener('keyup', (e) => keys.delete(e.code));
-  addEventListener('blur', () => { keys.clear(); input.fire = input.aim = false; });
+  addEventListener('blur', () => {
+    keys.clear();
+    mouseFire = false; input.fire = input.aim = false;
+    touch.fire = touch.up = touch.down = false;
+    touch.fwd = touch.strafe = 0; touch.sprint = false;
+    touch.stickId = touch.lookId = null;
+  });
 
   const canvas = renderer.domElement;
   canvas.addEventListener('mousedown', (e) => {
     if (!isPlaying()) return;
-    if (e.button === 0) input.fire = true;
+    if (e.button === 0) mouseFire = true;
     if (e.button === 2) setAim(true);
   });
   addEventListener('mouseup', (e) => {
-    if (e.button === 0) input.fire = false;
+    if (e.button === 0) mouseFire = false;
     if (e.button === 2) setAim(false);
   });
   addEventListener('contextmenu', (e) => e.preventDefault());
@@ -336,7 +361,7 @@ function bindInput() {
     weapons.nextWeapon(e.deltaY > 0 ? 1 : -1);
   }, { passive: true });
 
-  document.addEventListener('pointerlockchange', () => {
+  if (!IS_TOUCH) document.addEventListener('pointerlockchange', () => {
     pointerLocked = document.pointerLockElement === canvas;
     if (pointerLocked) {
       if (game.state === 'paused') resumeGame();
@@ -354,6 +379,212 @@ function setAim(v) {
   } else aimHeld = v;
 }
 
+// ------------------------------------------------------------
+//  触屏控制：左摇杆 / 右侧拖拽转向 / 动作按钮
+// ------------------------------------------------------------
+let touchUIEl = null, touchKnobEl = null, touchStickEl = null, touchAimEl = null;
+let touchEchoEl = null;
+
+function setTouchUIVisible(show) {
+  if (!IS_TOUCH || !touchUIEl) return;
+  touchUIEl.classList.toggle('hidden', !show);
+  touchUIEl.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (!show) resetTouchControls();
+}
+
+function resetTouchControls() {
+  touch.fwd = touch.strafe = 0;
+  touch.sprint = false;
+  touch.fire = touch.up = touch.down = false;
+  touch.stickId = touch.lookId = null;
+  if (touchKnobEl) touchKnobEl.style.transform = '';
+  if (touchUIEl) {
+    for (const el of touchUIEl.querySelectorAll('.touch-btn.on')) el.classList.remove('on');
+  }
+  aimHeld = false;
+  if (touchAimEl) touchAimEl.classList.remove('on');
+}
+
+function updateTouchButtons() {
+  if (!IS_TOUCH) return;
+  if (touchEchoEl) {
+    const ready = player.echo > 0 && player.echoCd <= 0;
+    touchEchoEl.classList.toggle('cd', !ready);
+    touchEchoEl.classList.toggle('ready', ready);
+  }
+}
+
+function toggleFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  try {
+    let p;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      p = req && req.call(el);
+    } else {
+      p = exit && exit.call(document);
+    }
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* 浏览器不支持时忽略 */ }
+}
+
+function bindTouchControls() {
+  if (!IS_TOUCH) return;
+  touchUIEl = document.getElementById('touchUI');
+  touchStickEl = document.getElementById('touchStick');
+  touchKnobEl = document.getElementById('touchKnob');
+  touchAimEl = document.getElementById('touchAim');
+  touchEchoEl = document.getElementById('touchEcho');
+  const lookEl = document.getElementById('touchLook');
+  const fireEl = document.getElementById('touchFire');
+  const reloadEl = document.getElementById('touchReload');
+  const jumpEl = document.getElementById('touchJump');
+  const weaponEl = document.getElementById('touchWeapon');
+  const diveEl = document.getElementById('touchDive');
+  const pauseEl = document.getElementById('touchPause');
+  const fullEl = document.getElementById('touchFullscreen');
+  const journalEl = document.getElementById('touchJournal');
+  if (!lookEl || !touchStickEl) return;
+
+  // ---- 视角拖动 ----
+  const lookSens = () => 0.0030 * (settings.sens / 55)
+    * (weapons.aimK > 0.4 ? settings.adsSens / 65 : 1);
+  const endLook = (e) => { if (e.pointerId === touch.lookId) touch.lookId = null; };
+  lookEl.addEventListener('pointerdown', (e) => {
+    if (!isPlaying() || touch.lookId !== null) return;
+    touch.lookId = e.pointerId;
+    touch.lastX = e.clientX; touch.lastY = e.clientY;
+    try { lookEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    e.preventDefault();
+  });
+  lookEl.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== touch.lookId || !isPlaying()) return;
+    const dx = e.clientX - touch.lastX;
+    const dy = e.clientY - touch.lastY;
+    touch.lastX = e.clientX; touch.lastY = e.clientY;
+    const sens = lookSens();
+    look.yaw -= dx * sens;
+    look.pitch -= dy * sens * (settings.invertY ? -1 : 1);
+    look.pitch = clamp(look.pitch, -1.53, 1.53);
+    e.preventDefault();
+  });
+  lookEl.addEventListener('pointerup', endLook);
+  lookEl.addEventListener('pointercancel', endLook);
+  lookEl.addEventListener('lostpointercapture', endLook);
+
+  // ---- 左侧摇杆 ----
+  let stickCx = 0, stickCy = 0, stickR = 1;
+  const moveStick = (x, y) => {
+    const dx = x - stickCx, dy = y - stickCy;
+    const len = Math.hypot(dx, dy);
+    const k = len > 0 ? Math.min(1, len / stickR) : 0;
+    const nx = len > 0 ? dx / len * k : 0;
+    const ny = len > 0 ? dy / len * k : 0;
+    touch.fwd = -ny;
+    touch.strafe = nx;
+    touch.sprint = k > 0.84;
+    touchKnobEl.style.transform = `translate(${nx * stickR}px, ${ny * stickR}px)`;
+  };
+  const startStick = (e) => {
+    if (!isPlaying() || touch.stickId !== null) return;
+    touch.stickId = e.pointerId;
+    const r = touchStickEl.getBoundingClientRect();
+    stickCx = r.left + r.width / 2;
+    stickCy = r.top + r.height / 2;
+    stickR = r.width * 0.34;
+    try { touchStickEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    moveStick(e.clientX, e.clientY);
+    e.preventDefault();
+  };
+  const endStick = (e) => {
+    if (e.pointerId !== touch.stickId) return;
+    touch.stickId = null;
+    touch.fwd = touch.strafe = 0;
+    touch.sprint = false;
+    touchKnobEl.style.transform = '';
+  };
+  touchStickEl.addEventListener('pointerdown', startStick);
+  touchStickEl.addEventListener('pointermove', (e) => {
+    if (e.pointerId === touch.stickId) { moveStick(e.clientX, e.clientY); e.preventDefault(); }
+  });
+  touchStickEl.addEventListener('pointerup', endStick);
+  touchStickEl.addEventListener('pointercancel', endStick);
+  touchStickEl.addEventListener('lostpointercapture', endStick);
+
+  // ---- 动作按钮 ----
+  const bindHold = (el, onDown, onUp) => {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      if (!isPlaying()) return;
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('on');
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      onDown && onDown();
+    });
+    const release = (e) => {
+      el.classList.remove('on');
+      onUp && onUp();
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('lostpointercapture', release);
+  };
+  const bindTap = (el, fn) => {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      if (!isPlaying()) return;
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('on');
+      setTimeout(() => el.classList.remove('on'), 130);
+      fn && fn();
+    });
+  };
+
+  bindHold(fireEl, () => { touch.fire = true; weapons.fire(); }, () => { touch.fire = false; });
+  bindHold(jumpEl, () => { touch.up = true; player.tryJumpBuffered(); }, () => { touch.up = false; });
+  bindHold(diveEl, () => { touch.down = true; }, () => { touch.down = false; });
+
+  bindTap(reloadEl, () => weapons.startReload());
+  bindTap(weaponEl, () => weapons.nextWeapon(1));
+  bindTap(touchEchoEl, () => useEchoPulse());
+  bindTap(journalEl, () => toggleJournal());
+
+  // 瞄准：跟随设置里的“按住 / 切换”方式
+  if (touchAimEl) {
+    const syncAim = () => touchAimEl.classList.toggle('on', aimHeld);
+    touchAimEl.addEventListener('pointerdown', (e) => {
+      if (!isPlaying()) return;
+      e.preventDefault(); e.stopPropagation();
+      if (settings.adsMode === 'toggle') aimHeld = !aimHeld;
+      else {
+        aimHeld = true;
+        try { touchAimEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+      syncAim();
+    });
+    const releaseAim = () => {
+      if (settings.adsMode === 'toggle') return;
+      aimHeld = false; syncAim();
+    };
+    touchAimEl.addEventListener('pointerup', releaseAim);
+    touchAimEl.addEventListener('pointercancel', releaseAim);
+    touchAimEl.addEventListener('lostpointercapture', releaseAim);
+  }
+
+  if (pauseEl) pauseEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (isPlaying()) pauseGame();
+  });
+  if (fullEl) {
+    if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+      fullEl.style.display = 'none';
+    } else {
+      fullEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleFullscreen(); });
+    }
+  }
+}
+
 const debugInput = { enabled: false, fwd: 0, strafe: 0, sprint: false, up: false, down: false, fire: false, aim: false };
 
 function readInput() {
@@ -362,13 +593,19 @@ function readInput() {
     input.up = debugInput.up; input.down = debugInput.down; input.aim = debugInput.aim;
     input.fire = debugInput.fire;
   } else {
-    input.fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
-    input.strafe = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
-    input.sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || settings.autoSprint;
-    input.up = keys.has('Space');
-    input.down = keys.has('KeyC') || keys.has('ControlLeft');
+    let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+    let strafe = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+    if (IS_TOUCH) {
+      fwd = clamp(fwd + touch.fwd, -1, 1);
+      strafe = clamp(strafe + touch.strafe, -1, 1);
+    }
+    input.fwd = fwd;
+    input.strafe = strafe;
+    input.sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || settings.autoSprint || touch.sprint;
+    input.up = keys.has('Space') || touch.up;
+    input.down = keys.has('KeyC') || keys.has('ControlLeft') || touch.down;
     input.aim = aimHeld;
-    input.fire = input.fire && pointerLocked;
+    input.fire = (mouseFire || touch.fire) && (pointerLocked || IS_TOUCH);
   }
   player.input.fwd = input.fwd;
   player.input.strafe = input.strafe;
@@ -380,6 +617,8 @@ function readInput() {
 }
 
 function requestLock() {
+  // 移动端没有 Pointer Lock：直接进入游戏，由屏幕控件接管输入
+  if (IS_TOUCH) return;
   const canvas = renderer.domElement;
   const p = canvas.requestPointerLock();
   if (p && p.catch) p.catch(() => {});
@@ -404,9 +643,9 @@ function setupWorld(seed) {
   weapons.water = water;
   enemies.world = world;
   enemies.water = water;
-  // 预生成出生区与目标
-  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) world.ensureCell(dx, dz);
-  world.warmup(0, 0);
+  // 预生成出生区与目标（只同步 2x2 区块，其余分帧补齐）
+  if (world.prewarmSpawn) world.prewarmSpawn(0, 0);
+  else world.prewarm(0, 0, 1);
   player.pos.set(0, 0.1, 2.0);
   player.vel.set(0, 0, 0);
   player.hp = 100;
@@ -418,7 +657,6 @@ function setupWorld(seed) {
   buildShards();
   buildExit();
   buildWeaponCrates();
-  if (world.prewarm) world.prewarm(0, 0, 1);
 }
 
 function teardownWorld() {
@@ -1045,6 +1283,7 @@ function openJournal() {
   bgm.setPaused(true);
   ui.renderJournal(buildJournalData());
   ui.showScreen('journal');
+  setTouchUIVisible(false);
   audio.ui('click');
 }
 
@@ -1052,6 +1291,7 @@ function closeJournal() {
   if (game.state !== 'journal') return;
   game.state = 'playing';
   ui.showScreen('none');
+  setTouchUIVisible(true);
   bgm.setPaused(false);
   requestLock();
   audio.ui('click');
@@ -1204,6 +1444,8 @@ function startRun(continueRun) {
   resetRunState();
   game.state = 'playing';
   ui.showScreen('none');
+  setTouchUIVisible(true);
+  if (IS_TOUCH) resetTouchControls();
   ui.setPauseSub(`回声碎片 ${game.collected.size} / ${SHARD_COUNT}`);
   bgm.start();
   bgm.setVolume(settings.volMusic / 100);
@@ -1252,6 +1494,11 @@ function resetRunState() {
   player.echo = 1;
   player.echoCd = 0;
   look.yaw = 0; look.pitch = 0;
+  aimHeld = false;
+  mouseFire = false;
+  touch.fire = touch.up = touch.down = false;
+  touch.fwd = touch.strafe = 0; touch.sprint = false;
+  touch.stickId = touch.lookId = null;
 
   weapons.damageMult = 1;
   weapons.fireRateMult = 1;
@@ -1283,13 +1530,15 @@ function pauseGame() {
   ui.setPauseSub(`回声碎片 ${game.collected.size} / ${SHARD_COUNT} · 击杀 ${game.kills}`);
   ui._settingsBack = 'pause';
   ui.showScreen('pause');
-  input.fire = false; input.aim = false; aimHeld = false;
+  setTouchUIVisible(false);
+  input.fire = false; input.aim = false; mouseFire = false; aimHeld = false;
   keys.clear();
   bgm.setPaused(true);
 }
 function resumeGame() {
   game.state = 'playing';
   ui.showScreen('none');
+  setTouchUIVisible(true);
   bgm.setPaused(false);
   requestLock();
 }
@@ -1300,6 +1549,7 @@ function quitToTitle() {
   game.state = 'title';
   ui._settingsBack = 'title';
   ui.showScreen('title');
+  setTouchUIVisible(false);
   if (document.pointerLockElement) document.exitPointerLock();
   bgm.stop();
   updateMusicLabel();
@@ -1311,6 +1561,7 @@ function gameOver() {
   if (document.pointerLockElement) document.exitPointerLock();
   ui.setDeadStats(statsHTML());
   ui.showScreen('dead');
+  setTouchUIVisible(false);
   bgm.setPaused(true);
 }
 function winRun() {
@@ -1318,6 +1569,7 @@ function winRun() {
   if (document.pointerLockElement) document.exitPointerLock();
   ui.setWinStats(statsHTML());
   ui.showScreen('win');
+  setTouchUIVisible(false);
   audio.chime();
   bgm.setPaused(true);
 }
@@ -1339,7 +1591,8 @@ function applySettings(save = false, key = null, value = null) {
     applyPreset(settings, value);
     ui.refreshAll();
   }
-  const pr = Math.min(devicePixelRatio || 1, 1.6) * clamp(settings.resScale, 0.5, 1);
+  const dprCap = IS_TOUCH ? 1.25 : 1.6;
+  const pr = Math.min(devicePixelRatio || 1, dprCap) * clamp(settings.resScale, 0.5, 1);
   renderer.setPixelRatio(pr);
   renderer.toneMappingExposure = settings.exposure / 100;
   bloomPass.strength = (settings.bloom / 100) * 0.8;
@@ -1381,6 +1634,7 @@ function simStep(dt) {
   player.boostT = Math.max(0, player.boostT - dt);
   readInput();
   player.update(dt, game.time);
+  updateTouchButtons();
   weapons.update(dt, input, enemies);
   enemies.update(dt, player);
   water.update(dt);
@@ -1573,6 +1827,7 @@ const NOPOST = QP.get('nopost') === '1';
 // ============================================================
 function boot() {
   bindInput();
+  if (IS_TOUCH) { bindTouchControls(); setTouchUIVisible(false); }
   ui.setSeed(QP.get('seed') || '');
   ui.showScreen('loading');
   applySettings(false);

@@ -2,6 +2,17 @@
 //  POOLCORE v3 — 全局配置 / 画质档位 / 玩家设置
 // ============================================================
 
+// ------------------------------------------------------------
+//  设备探测：触屏 / 移动端
+//  - 触屏设备不请求 Pointer Lock，改用屏幕摇杆 + 拖拽转向
+// ------------------------------------------------------------
+export const IS_TOUCH = (() => {
+  if (typeof window === 'undefined') return false;
+  const mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+  if (mm && mm('(pointer: coarse)').matches) return true;
+  return !!navigator.maxTouchPoints && !!mm && mm('(hover: none)').matches;
+})();
+
 export const CELL = 14;                 // 房间格边长（米）
 export const H = CELL / 2;
 export const WALL_T = 0.42;             // 墙厚
@@ -164,10 +175,18 @@ const LS_KEY = 'poolcore.settings.v3d';
 
 export function loadSettings() {
   const s = { ...DEFAULT_SETTINGS };
+  let saved = false;
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) Object.assign(s, JSON.parse(raw));
+    if (raw) { Object.assign(s, JSON.parse(raw)); saved = true; }
   } catch (e) { /* ignore */ }
+  // 移动端首次进入：默认中画质 + 稍低的渲染分辨率，避免手机一上来就过热掉帧
+  if (IS_TOUCH && !saved) {
+    applyPreset(s, 'medium');
+    s.resScale = 0.85;
+    s.sens = 70;
+    s.adsMode = 'toggle';
+  }
   const clampN = (k, a, b) => { if (typeof s[k] === 'number') s[k] = Math.max(a, Math.min(b, s[k])); };
   clampN('exposure', 50, 120);
   clampN('bloom', 0, 110);

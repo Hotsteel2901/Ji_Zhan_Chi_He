@@ -286,7 +286,6 @@ export class World {
       for (let dx = -buildR; dx <= buildR; dx++)
         for (let dz = -buildR; dz <= buildR; dz++)
           if (inBuild(dx, dz)) needed.add(this.chunkKey(bcx + dx, bcz + dz));
-      this.buildQueue = [];
       for (const k of needed) {
         if (this.chunks.has(k)) continue;
         const [x, z] = k.split(',').map(Number);
@@ -295,8 +294,10 @@ export class World {
           for (let cz = z * CHUNK; cz < z * CHUNK + CHUNK; cz++)
             chunk.pending.push([cx, cz]);
         this.chunks.set(k, chunk);
-        this.buildQueue.push(chunk);
       }
+      // 重建队列：必须把“只建了一半”的旧区块也放回去。
+      // 之前这里只排新区块，玩家跨区块后未完成的区块会永远没有 group（整片房间消失）。
+      this.buildQueue = [...this.chunks.values()].filter(ch => !ch.built);
       // 最近的先建
       this.buildQueue.sort((a, b) => (Math.abs(a.bcx - bcx) + Math.abs(a.bcz - bcz)) - (Math.abs(b.bcx - bcx) + Math.abs(b.bcz - bcz)));
     }
@@ -326,6 +327,28 @@ export class World {
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) this.ensureCell(cx + dx, cz + dz);
     const b = this.cellKey(cx, cz);
     void b;
+  }
+
+  /** 同步预建出生区：只建“玩家所在区块 + 西/北邻居”这一块 2x2。
+   *  - E/S 墙由本格所在区块生成，W/N 墙由西/北邻居生成，2x2 足以围住出生房间
+   *  - 其余区块交给 update() 分帧补齐，避免手机在加载时同步生成 144 个房间而卡死 */
+  prewarmSpawn(px, pz) {
+    const bcx = Math.floor((px + H) / (CELL * CHUNK));
+    const bcz = Math.floor((pz + H) / (CELL * CHUNK));
+    for (let dx = -1; dx <= 0; dx++) {
+      for (let dz = -1; dz <= 0; dz++) {
+        const key = this.chunkKey(bcx + dx, bcz + dz);
+        if (this.chunks.has(key)) continue;
+        const chunk = { key, bcx: bcx + dx, bcz: bcz + dz, group: null, built: false, cells: [], pending: [] };
+        for (let cx = chunk.bcx * CHUNK; cx < chunk.bcx * CHUNK + CHUNK; cx++)
+          for (let cz = chunk.bcz * CHUNK; cz < chunk.bcz * CHUNK + CHUNK; cz++)
+            chunk.cells.push(this.ensureCell(cx, cz));
+        this.mergeChunk(chunk);
+        this.chunks.set(key, chunk);
+      }
+    }
+    // 让第一帧 update() 重新排队其余区块
+    this.lastChunk = { x: Infinity, z: Infinity };
   }
 
   /** 同步预建区块（把出生区直接合并好，避免开局透过未建好的墙看到亮雾） */

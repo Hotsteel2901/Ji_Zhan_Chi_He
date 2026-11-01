@@ -47,7 +47,11 @@ export function buildSeam(b, dir, seed) {
   const meta = neighborMeta(cx, cz, dir, seed);
   const myMeta = { type: cell.type, hasUpper: hasUpper(cell.type), top: topOf(cell.type), levels: levelsOf(cell.type) };
   const top = Math.max(myMeta.top, meta.top);
+  // 注意区分两种“方向”：
+  //   isX      —— 墙的法线朝 x（E/W 墙），用于门框、门槛等朝向判断
+  //   wallAlongX —— 墙体沿 x 方向延伸（S/N 墙），wallSegments 使用的是这个语义
   const isX = dir === 'E';
+  const wallAlongX = dir === 'S';
   const fixed = isX ? cx * CELL + H : cz * CELL + H;
   const a0 = isX ? cz * CELL - H : cx * CELL - H;
   const a1 = isX ? cz * CELL + H : cx * CELL + H;
@@ -68,10 +72,10 @@ export function buildSeam(b, dir, seed) {
   const tileTop = 2.4;
   if (top > 0.02) {
     if (tileTop < top) {
-      b.wallSegments(isX, fixed, a0, a1, 0, Math.min(tileTop, top), openings, { bucket: 'tile', uv: 1 / 2.2, collide: true, world: true });
-      b.wallSegments(isX, fixed, a0, a1, Math.min(tileTop, top), top, openings, { bucket: 'concrete', uv: 1 / 2.6, collide: true, world: true });
+      b.wallSegments(wallAlongX, fixed, a0, a1, 0, Math.min(tileTop, top), openings, { bucket: 'tile', uv: 1 / 2.2, collide: true, world: true });
+      b.wallSegments(wallAlongX, fixed, a0, a1, Math.min(tileTop, top), top, openings, { bucket: 'concrete', uv: 1 / 2.6, collide: true, world: true });
     } else {
-      b.wallSegments(isX, fixed, a0, a1, 0, top, openings, { bucket: 'tile', uv: 1 / 2.2, collide: true, world: true });
+      b.wallSegments(wallAlongX, fixed, a0, a1, 0, top, openings, { bucket: 'tile', uv: 1 / 2.2, collide: true, world: true });
     }
   }
 

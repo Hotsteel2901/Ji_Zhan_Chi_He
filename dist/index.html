@@ -2,7 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#050d10" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="icon" href="data:," />
 <title>激战池核 POOLCORE</title>
 <link rel="stylesheet" href="./styles.css" />
@@ -29,6 +33,35 @@
 <div id="fx-fade"></div>
 
 <!-- ======================= HUD ======================= -->
+<!-- ======================= 移动端触控层 ======================= -->
+<div id="touchUI" class="touch-ui hidden" aria-hidden="true">
+  <div id="touchLook" class="touch-look"></div>
+
+  <div class="touch-top">
+    <button id="touchJournal" class="touch-icon" type="button" aria-label="回声日志">▤</button>
+    <button id="touchFullscreen" class="touch-icon" type="button" aria-label="全屏">⛶</button>
+    <button id="touchPause" class="touch-icon" type="button" aria-label="暂停">Ⅱ</button>
+  </div>
+
+  <div id="touchStick" class="touch-stick" aria-label="移动摇杆">
+    <span class="touch-stick-ring"></span>
+    <span id="touchKnob" class="touch-knob"></span>
+    <span class="touch-stick-label">移动</span>
+  </div>
+
+  <div class="touch-actions">
+    <button id="touchFire" class="touch-btn fire" type="button">开火</button>
+    <button id="touchAim" class="touch-btn aim" type="button">瞄准</button>
+    <button id="touchReload" class="touch-btn small" type="button">换弹</button>
+    <button id="touchJump" class="touch-btn small" type="button">跳跃</button>
+    <button id="touchEcho" class="touch-btn small" type="button">脉冲</button>
+    <button id="touchWeapon" class="touch-btn small" type="button">换枪</button>
+    <button id="touchDive" class="touch-btn small" type="button">下潜</button>
+  </div>
+
+  <div class="touch-rotate-hint">横屏体验更佳</div>
+</div>
+
 <div id="hud" class="hidden">
 
   <div class="hud-topleft">
@@ -136,7 +169,7 @@
     <div class="title-left">
       <div class="title-en">A LIMINAL SPACE · POOLCORE</div>
       <h1 class="title-zh">激 战 池 核</h1>
-      <div class="title-sub">POOLCORE <em>v4</em> — 无尽室内泳池 · 回声碎片 · 生存射击<br><span style="font-size:11px;letter-spacing:.26em;opacity:.75">5 首程序化 D&amp;B · 实时合成 · M 开关 · [ ] 切歌</span></div>
+      <div class="title-sub">POOLCORE <em>v4</em> — 无尽室内泳池 · 回声碎片 · 生存射击<br><span style="font-size:11px;letter-spacing:.26em;opacity:.75">5 首程序化 D&amp;B · 实时合成 · M 开关 · [ ] 切歌</span><span class="title-mobile">手机：左摇杆移动 · 拖动转向 · 右侧按钮战斗</span></div>
       <div class="title-seed">
         <label>世界种子</label>
         <input id="seedInput" type="text" maxlength="24" placeholder="随机" spellcheck="false" />
@@ -268,7 +301,7 @@
   <div class="panel wide journal-panel">
     <div class="panel-head">
       <h2>回 声 日 志</h2>
-      <div class="sub">TAB 关闭 · 游戏已暂停</div>
+      <div class="sub"><span class="pc-inline">TAB 关闭 · 游戏已暂停</span><span class="touch-inline">点返回关闭 · 游戏已暂停</span></div>
     </div>
     <div class="panel-body journal-body" id="journalBody"></div>
     <div class="panel-foot">
@@ -280,8 +313,14 @@
 <!-- ======================= 操作说明 ======================= -->
 <div id="screen-help" class="screen hidden">
   <div class="panel wide">
-    <div class="panel-head"><h2>操作说明</h2><div class="sub">PC · 键鼠</div></div>
+    <div class="panel-head"><h2>操作说明</h2><div class="sub"><span class="pc-inline">PC · 键鼠</span><span class="touch-inline">触屏 · 移动端</span></div></div>
     <div class="panel-body help-body">
+      <div class="help-col touch-only help-touch">
+        <h3>移动端操作</h3>
+        <p>左侧<b>摇杆</b>移动（推到底自动疾跑）· 右侧空白处<b>拖动</b>转向</p>
+        <p>右侧按钮：<b>开火</b> / <b>瞄准</b> / <b>跳跃·上浮</b> / <b>下潜</b> / <b>换弹</b> / <b>脉冲</b> / <b>武器</b></p>
+        <p>右上角可<b>暂停</b>或切换<b>全屏</b>；横屏体验更佳</p>
+      </div>
       <div class="help-col">
         <h3>移动</h3>
         <p><b>WASD</b> 移动 · <b>Shift</b> 疾跑 · <b>空格</b> 跳跃（游泳时长按上浮）</p>

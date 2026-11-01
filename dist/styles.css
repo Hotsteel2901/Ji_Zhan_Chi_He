@@ -608,3 +608,310 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius
 #toasts { z-index: 12; }
 .weapon-slots { gap: 4px; }
 .wslot { padding: 3px 5px; }
+
+/* ============================================================
+   移动端 / 触屏
+   ============================================================ */
+.touch-only, .touch-inline, .title-mobile { display: none; }
+body.touch .title-mobile { display: block; margin-top: 4px; font-size: 10px; letter-spacing: 0.14em; opacity: 0.72; }
+body.touch #fx-grain { animation: none; opacity: 0.022; }
+body.touch .touch-only { display: block; }
+body.touch .touch-inline { display: inline; }
+body.touch .pc-inline { display: none; }
+body.touch { -webkit-touch-callout: none; }
+body.touch #stage,
+body.touch #stage canvas { touch-action: none; }
+body.touch .pc-only { display: none !important; }
+
+.touch-ui {
+  position: fixed; inset: 0; z-index: 11; pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.touch-ui.hidden { display: none !important; }
+
+/* 全屏转向层：放在按钮下面，负责拖动视角 */
+.touch-look {
+  position: absolute; inset: 0; pointer-events: auto;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+
+.touch-top {
+  position: absolute; z-index: 4; pointer-events: none;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: calc(env(safe-area-inset-right) + 10px);
+  display: flex; gap: 8px;
+}
+.touch-icon {
+  pointer-events: auto; width: 42px; height: 42px; padding: 0;
+  display: grid; place-items: center; border-radius: 50%;
+  font-family: inherit; font-size: 16px; color: #dff8ff;
+  background: rgba(6, 20, 25, 0.62); border: 1px solid rgba(124, 231, 255, 0.36);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+.touch-icon:active { background: rgba(80, 190, 215, 0.35); }
+
+/* 左侧摇杆 */
+.touch-stick {
+  position: absolute; z-index: 3; pointer-events: auto;
+  left: calc(env(safe-area-inset-left) + 18px);
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  width: 132px; height: 132px; border-radius: 50%;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 50% 46%, rgba(18, 54, 64, 0.5), rgba(4, 14, 18, 0.42) 68%, rgba(4, 14, 18, 0.18));
+  border: 1px solid rgba(124, 231, 255, 0.26);
+  box-shadow: inset 0 0 34px rgba(0, 0, 0, 0.35), 0 4px 22px rgba(0, 0, 0, 0.22);
+}
+.touch-stick-ring {
+  position: absolute; inset: 17px; border-radius: 50%;
+  border: 1px dashed rgba(124, 231, 255, 0.2);
+}
+.touch-knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+  background: radial-gradient(circle at 42% 36%, rgba(205, 248, 255, 0.45), rgba(54, 150, 174, 0.4) 55%, rgba(12, 55, 68, 0.55));
+  border: 1px solid rgba(170, 240, 255, 0.55);
+  box-shadow: 0 0 18px rgba(100, 220, 245, 0.25), inset 0 0 14px rgba(180, 245, 255, 0.18);
+  transition: transform 0.05s linear;
+  will-change: transform;
+}
+.touch-stick-label {
+  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  font-size: 9px; letter-spacing: 0.24em; color: rgba(159, 211, 218, 0.65);
+}
+
+/* 右侧动作按钮 */
+.touch-actions {
+  position: absolute; z-index: 3; pointer-events: none;
+  right: calc(env(safe-area-inset-right) + 14px);
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
+  width: 246px; height: 260px;
+}
+.touch-btn {
+  position: absolute; pointer-events: auto; padding: 0;
+  display: grid; place-items: center; border-radius: 50%;
+  font-family: inherit; font-size: 12px; letter-spacing: 0.12em; color: #e6fbff;
+  background: radial-gradient(circle at 42% 35%, rgba(60, 168, 192, 0.34), rgba(6, 24, 30, 0.68) 72%);
+  border: 1px solid rgba(124, 231, 255, 0.34);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.4), inset 0 0 16px rgba(120, 235, 255, 0.06);
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+  user-select: none; -webkit-user-select: none;
+  transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
+}
+.touch-btn:active, .touch-btn.on {
+  background: radial-gradient(circle at 42% 35%, rgba(130, 235, 255, 0.62), rgba(12, 70, 86, 0.8) 72%);
+  border-color: rgba(190, 250, 255, 0.85);
+  transform: scale(0.94);
+  box-shadow: 0 0 20px rgba(100, 220, 245, 0.34), inset 0 0 18px rgba(190, 250, 255, 0.28);
+}
+.touch-btn.fire {
+  right: 0; bottom: 0; width: 104px; height: 104px;
+  font-size: 14px; letter-spacing: 0.2em;
+  background: radial-gradient(circle at 42% 35%, rgba(255, 150, 112, 0.34), rgba(44, 12, 8, 0.7) 72%);
+  border-color: rgba(255, 154, 116, 0.46);
+}
+.touch-btn.fire:active, .touch-btn.fire.on {
+  background: radial-gradient(circle at 42% 35%, rgba(255, 190, 150, 0.68), rgba(96, 26, 12, 0.82) 72%);
+  border-color: rgba(255, 214, 180, 0.9);
+  box-shadow: 0 0 24px rgba(255, 120, 80, 0.4), inset 0 0 20px rgba(255, 220, 180, 0.3);
+}
+.touch-btn.aim { right: 114px; bottom: 12px; width: 64px; height: 64px; }
+.touch-btn.small { width: 58px; height: 58px; font-size: 10px; letter-spacing: 0.08em; }
+#touchReload { right: 10px; bottom: 114px; }
+#touchJump { right: 114px; bottom: 92px; }
+#touchEcho { right: 186px; bottom: 12px; }
+#touchWeapon { right: 186px; bottom: 90px; }
+#touchDive { right: 18px; bottom: 188px; width: 50px; height: 50px; font-size: 9px; }
+#touchEcho.ready { border-color: rgba(159, 232, 255, 0.7); box-shadow: 0 0 14px rgba(120, 235, 255, 0.24); }
+#touchEcho.cd { opacity: 0.45; }
+
+.touch-rotate-hint {
+  position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 88px);
+  transform: translateX(-50%); display: none; pointer-events: none;
+  font-size: 10px; letter-spacing: 0.24em; color: rgba(205, 244, 248, 0.55);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* 触屏 HUD：缩小边角、把弹药移到下方居中 */
+body.touch .hud-topleft { top: calc(env(safe-area-inset-top) + 10px); left: calc(env(safe-area-inset-left) + 12px); }
+body.touch .objective-card { min-width: 0; max-width: 48vw; padding: 7px 11px 8px; }
+body.touch .objective-title { font-size: 10px; letter-spacing: 0.2em; }
+body.touch .objective-count { font-size: 19px; }
+body.touch .objective-count span { font-size: 10px; }
+body.touch .objective-sub { display: none; }
+body.touch .objective-side { margin-top: 3px; font-size: 9px; max-width: 48vw; }
+body.touch .pips { margin-top: 5px; gap: 2px; }
+
+body.touch .hud-topright {
+  top: calc(env(safe-area-inset-top) + 60px);
+  right: calc(env(safe-area-inset-right) + 12px);
+  gap: 7px;
+}
+body.touch .minimap-panel { width: 92px; height: 92px; }
+body.touch .minimap-label { font-size: 7px; bottom: 3px; left: 5px; }
+body.touch .minimap-n { font-size: 8px; top: 3px; right: 5px; }
+body.touch .killfeed { width: 170px; gap: 3px; }
+body.touch .kill-msg { font-size: 10px; padding: 3px 7px; }
+
+body.touch .hud-compass { top: 6px; transform: translateX(-50%) scale(0.8); transform-origin: top center; }
+body.touch .compass-dial { width: 58px; height: 58px; }
+body.touch .needle-gem { transform: translate(-50%, -50%) translateY(-20px) rotate(45deg); }
+body.touch .compass-needle::after { height: 12px; transform: translate(-50%, -100%) translateY(-10px); }
+body.touch .dial-vert { bottom: -12px; font-size: 10px; }
+body.touch .dial-dist { font-size: 9px; }
+
+body.touch .hud-bottomleft {
+  left: calc(env(safe-area-inset-left) + 16px);
+  bottom: calc(env(safe-area-inset-bottom) + 158px);
+}
+body.touch .vitals-panel { width: 178px; }
+body.touch .vitals-label { font-size: 9px; letter-spacing: 0.24em; }
+body.touch .vitals-num { font-size: 20px; }
+body.touch .health-track { height: 10px; }
+body.touch .status-row { margin-top: 4px; min-height: 14px; }
+body.touch .status-chip { font-size: 9px; padding: 1px 6px; }
+
+body.touch .hud-bottomright {
+  left: 50%; right: auto;
+  bottom: calc(env(safe-area-inset-bottom) + 54px);
+  transform: translateX(-50%);
+}
+body.touch .weapon-panel { width: auto; text-align: center; }
+body.touch .weapon-slots, body.touch .fire-mode { display: none; }
+body.touch .weapon-name { font-size: 9px; letter-spacing: 0.18em; color: #8fb4ba; margin-bottom: 0; }
+body.touch .ammo-row { margin-top: 0; }
+body.touch .ammo-row b { font-size: 27px; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8); }
+body.touch .ammo-row span { font-size: 11px; }
+body.touch .reload-track { width: 106px; margin: 3px auto 0; }
+
+body.touch .hud-bottomcenter { bottom: calc(env(safe-area-inset-bottom) + 8px); }
+body.touch .echo-hud { gap: 3px; margin-bottom: 3px; }
+body.touch .echo-label { display: none; }
+body.touch .echo-charges { gap: 5px; height: 10px; }
+body.touch .echo-charge { width: 9px; height: 9px; }
+body.touch .prompt { font-size: 11px; letter-spacing: 0.12em; margin-top: 3px; }
+body.touch .move-state { font-size: 10px; letter-spacing: 0.3em; }
+
+body.touch .boss-bar { top: calc(env(safe-area-inset-top) + 82px); width: 84vw; }
+body.touch .banner { top: 27%; font-size: 16px; letter-spacing: 0.3em; }
+body.touch .streak-banner { top: calc(env(safe-area-inset-top) + 80px); font-size: 17px; letter-spacing: 0.28em; }
+body.touch .exit-hint { top: calc(env(safe-area-inset-top) + 62px); font-size: 11px; letter-spacing: 0.14em; }
+body.touch .crystal-marker { transform: translate(-50%, -50%) scale(0.9); }
+body.touch #toasts { bottom: calc(env(safe-area-inset-bottom) + 132px); width: min(88vw, 520px); }
+body.touch .toast { font-size: 11px; padding: 6px 12px; text-align: center; }
+body.touch .dmgdir { width: 200px; height: 200px; }
+
+/* 竖屏时稍微缩小操作区，给视野留空间 */
+@media (orientation: portrait) {
+  body.touch .touch-rotate-hint { display: block; }
+  body.touch .touch-stick { width: 118px; height: 118px; }
+  body.touch .touch-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  body.touch .touch-actions { transform: scale(0.78); transform-origin: bottom right; }
+
+  /* 竖屏空间窄：状态/弹药/回声全部靠左竖排，避免和右手按钮打架 */
+  body.touch .hud-bottomleft {
+    left: calc(env(safe-area-inset-left) + 16px);
+    bottom: calc(env(safe-area-inset-bottom) + 146px);
+  }
+  body.touch .vitals-panel { width: 160px; }
+  body.touch .vitals-num { font-size: 19px; }
+  body.touch .hud-bottomright {
+    left: calc(env(safe-area-inset-left) + 16px); right: auto;
+    bottom: calc(env(safe-area-inset-bottom) + 210px);
+    transform: none;
+  }
+  body.touch .weapon-panel { text-align: left; }
+  body.touch .weapon-name { font-size: 8px; letter-spacing: 0.12em; }
+  body.touch .ammo-row b { font-size: 22px; }
+  body.touch .ammo-row span { font-size: 9px; }
+  body.touch .reload-track { width: 88px; margin: 2px 0 0; }
+  body.touch .hud-bottomcenter {
+    left: calc(env(safe-area-inset-left) + 16px); right: auto;
+    bottom: calc(env(safe-area-inset-bottom) + 272px);
+    transform: none; text-align: left;
+  }
+  body.touch .echo-hud { align-items: flex-start; }
+  body.touch .prompt { max-width: 210px; font-size: 10px; text-align: left; }
+  body.touch .objective-card { max-width: 42vw; }
+  body.touch .objective-side { max-width: 42vw; }
+}
+@media (orientation: portrait) and (max-width: 430px) {
+  body.touch .touch-top { gap: 6px; }
+  body.touch .touch-icon { width: 36px; height: 36px; font-size: 14px; }
+  body.touch .hud-compass { transform: translateX(-50%) scale(0.72); }
+  body.touch .objective-card { max-width: 39vw; }
+  body.touch .objective-side { max-width: 39vw; }
+}
+
+@media (orientation: portrait) and (max-width: 340px) {
+  body.touch .touch-actions { transform: scale(0.72); }
+  body.touch .touch-stick { width: 106px; height: 106px; }
+  body.touch .touch-knob { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+  body.touch .vitals-panel { width: 136px; }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  body.touch .touch-actions { transform: scale(0.82); transform-origin: bottom right; }
+  body.touch .touch-stick { width: 112px; height: 112px; }
+  body.touch .touch-knob { width: 48px; height: 48px; margin: -24px 0 0 -24px; }
+  body.touch .hud-bottomleft { bottom: calc(env(safe-area-inset-bottom) + 136px); }
+  body.touch .hud-bottomright { bottom: calc(env(safe-area-inset-bottom) + 46px); }
+  body.touch .hud-topright { top: calc(env(safe-area-inset-top) + 56px); }
+  body.touch .minimap-panel { width: 80px; height: 80px; }
+  body.touch .objective-card { max-width: 40vw; }
+}
+
+/* 触屏设备上的菜单 / 按钮更大、更易点按 */
+body.touch .screen {
+  align-items: flex-start; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+}
+body.touch .screen > .panel,
+body.touch .screen > .loading-inner { margin: auto; }
+body.touch .title-wrap { margin: auto; }
+body.touch .btn { padding: 15px 26px; font-size: 16px; }
+body.touch .panel { width: min(560px, 94vw); }
+body.touch .panel.wide { width: min(860px, 96vw); }
+body.touch .panel-body { max-height: 64dvh; padding: 18px 18px; }
+body.touch .panel-head { padding: 16px 18px; }
+body.touch .panel-head h2 { font-size: 19px; }
+body.touch .panel-foot { padding: 13px 18px; flex-wrap: wrap; }
+body.touch .panel-foot .btn { flex: 1 1 30%; min-width: 96px; }
+body.touch .menu-col { width: min(360px, 84vw); }
+body.touch .title-wrap { padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); align-items: flex-start; justify-content: center; }
+body.touch .title-left { min-width: 0; width: min(440px, 100%); }
+body.touch .title-zh { font-size: clamp(32px, 10vw, 56px); }
+body.touch .title-en { font-size: 10px; letter-spacing: 0.4em; }
+body.touch .title-sub { font-size: 11px; line-height: 1.7; }
+body.touch .title-seed { margin-top: 16px; flex-wrap: wrap; }
+body.touch .title-seed input { width: 132px; font-size: 14px; padding: 9px 10px; }
+body.touch .menu-btns { margin-top: 14px; max-width: none; }
+body.touch .title-foot { margin-top: 14px; }
+body.touch .help-touch { grid-column: 1 / -1; margin-bottom: 4px; }
+body.touch .keys-grid { grid-template-columns: repeat(2, 1fr); }
+body.touch .row { grid-template-columns: 104px 1fr 42px; gap: 10px; padding: 7px 0; }
+body.touch .journal-body { max-height: 66dvh; }
+
+/* 横屏小高度：标题页改为左右双栏，避免按钮掉到屏幕外 */
+@media (orientation: landscape) and (max-height: 540px) {
+  body.touch .title-wrap { flex-direction: row; align-items: center; padding: 10px 26px; max-width: 1100px; }
+  body.touch .title-right { display: none; }
+  body.touch .title-left {
+    width: 100%; display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+    grid-template-areas:
+      "en menu"
+      "zh menu"
+      "sub menu"
+      "seed menu"
+      "foot menu";
+    gap: 4px 28px; align-items: start;
+  }
+  body.touch .title-en { grid-area: en; margin: 0; }
+  body.touch .title-zh { grid-area: zh; font-size: clamp(30px, 6vw, 48px); }
+  body.touch .title-sub { grid-area: sub; margin-top: 2px; }
+  body.touch .title-seed { grid-area: seed; margin-top: 6px; }
+  body.touch .menu-btns { grid-area: menu; align-self: center; margin-top: 0; max-width: none; }
+  body.touch .menu-btns .btn { padding: 10px 20px; font-size: 15px; }
+  body.touch .title-foot { grid-area: foot; margin-top: 4px; }
+}
